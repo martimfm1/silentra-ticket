@@ -1,0 +1,16 @@
+# ------------------------------------------------------------------------
+# SILENTRA™ APPS CORE DEPENDENCIES
+# "You think, we do."
+# ------------------------------------------------------------------------
+
+# Core Discord API Engine
+discord.py>=2.4.0
+
+# Enterprise Cloud Database Gateway (PostgreSQL Client)
+supabase>=2.5.0
+
+# Environment Configuration Subsystem
+python-dotenv>=1.0.1
+
+# High-Performance HTTP Client (Required by Supabase Async Tasks)
+httpx>=0.27.0
