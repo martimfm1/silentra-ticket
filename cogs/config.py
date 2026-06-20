@@ -1,8 +1,8 @@
 import asyncio
-import logging
 import discord
 from discord import app_commands
 from discord.ext import commands
+from services.logs import logger
 from discord.ui import Select, View
 from services.translation_service import tr
 from views.ticket_view import TicketView
@@ -13,7 +13,16 @@ from database.repository import (
     set_server_language,
 )
 
-logger = logging.getLogger(__name__)
+def config_embed(guild_id: int) -> discord.Embed:
+    embed = discord.Embed(
+        description=f"** ``` {tr(guild_id, 'config_menu_title')} ``` **",
+        color=discord.Color.dark_grey()
+    )
+    embed.add_field(name="\u200b", value=tr(guild_id, "config_menu_intro"), inline=False)
+    embed.add_field(name="\u200b", value=tr(guild_id, "config_menu_hint"), inline=False)
+    embed.set_image(url='https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHRkbjJ0Y2N5ZmptZHByaDcxOWwzcnFxNTdocnh3eXV3ajBjaTdvNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/aq92vY5OGWBrjDvRw4/giphy.gif')
+    return embed
+
 
 def panel_embed(guild_id: int) -> discord.Embed:
     embed = discord.Embed(
@@ -21,13 +30,11 @@ def panel_embed(guild_id: int) -> discord.Embed:
         description=tr(guild_id, "panel_description"),
         color=discord.Color.dark_grey()
     )
-    return embed
-
-def config_embed(guild_id: int) -> discord.Embed:
-    embed = discord.Embed(
-        description=f"** ``` {tr(guild_id, 'config_menu_title')} ``` **",
-        color=discord.Color.dark_grey()
+    embed.set_footer(
+        text=tr(guild_id, "panel_footer"),
+        icon_url="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZzVndTdvZjFldnhiOGI3bnJjZ2VwMm96cHF0ZnUybWIzNTZra3BxaCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oJOFRHEVgFjLO0WUs/giphy.gif"
     )
+    embed.set_image(url='https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHRkbjJ0Y2N5ZmptZHByaDcxOWwzcnFxNTdocnh3eXV3ajBjaTdvNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/aq92vY5OGWBrjDvRw4/giphy.gif')
     return embed
 
 
@@ -35,7 +42,7 @@ class Config(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="configure-bot", description="Abrir menu de configuracao do bot de tickets")
+    @app_commands.command(name="configure-bot", description="Open ticket bot settings menu")
     @app_commands.checks.has_permissions(administrator=True)
     async def configure_bot(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -43,25 +50,24 @@ class Config(commands.Cog):
             await interaction.response.send_message(tr(0, "server_only_command"), ephemeral=True)
             return
 
-        logger.info(f"Segurança: Admin {interaction.user.id} iniciou configuração na Guild {guild.id}")
+        logger.info(f"Security: Admin {interaction.user.id} initiated configuration in Guild {guild.id}")
         view = ConfigMenu(guild.id)
         await interaction.response.send_message(embed=config_embed(guild.id), view=view, ephemeral=True)
 
     @configure_bot.error
     async def configure_bot_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.errors.MissingPermissions):
-            logger.warning(f"Segurança: Utilizador não autorizado {interaction.user.id} tentou usar /configure-bot na Guild {interaction.guild_id}")
-            await interaction.response.send_message("❌ Não tens permissões administrativas para usar este comando.", ephemeral=True)
+            logger.warning(f"Security: Unauthorized user {interaction.user.id} attempted to use /configure-bot on Guild {interaction.guild_id}")
+            await interaction.response.send_message("❌ You do not have administrative permissions to use this command.", ephemeral=True)
 
 class SecureView(View):
     def __init__(self):
         super().__init__(timeout=300)
 
-    # MEDIDA DE SEGURANÇA 2: Impede que terceiros cliquem nas opções do menu exposto
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if not interaction.user.guild_permissions.administrator:
-            logger.warning(f"Segurança: {interaction.user.id} tentou clicar numa View restrita na Guild {interaction.guild.id}")
-            await interaction.response.send_message("❌ Apenas administradores do servidor podem interagir com este menu.", ephemeral=True)
+            logger.warning(f"Security: {interaction.user.id} attempted to click on a restricted View in Guild {interaction.guild.id}")
+            await interaction.response.send_message("❌ Only server administrators can interact with this menu.", ephemeral=True)
             return False
         return True
 
@@ -95,7 +101,7 @@ class MainSelect(Select):
         try:
             config = get_server_config(guild.id) or {}
         except Exception:
-            logger.exception(f"Erro na BD ao ler config da Guild {guild.id}")
+            logger.exception(f"Error in the database while reading Guild config {guild.id}")
             config = {}
 
         embed = discord.Embed(title=tr(guild.id, "config_menu_short_title"), color=discord.Color.dark_grey())
@@ -121,7 +127,7 @@ class MainSelect(Select):
             return
 
         if choice == "send_panel":
-            logger.info(f"Audit: Painel de tickets gerado na Guild {guild.id} por {interaction.user.id}")
+            logger.info(f"Audit: Ticket panel generated in Guild {guild.id} by {interaction.user.id}")
             await interaction.response.defer()
             await interaction.followup.send(embed=panel_embed(guild.id), view=TicketView(guild.id))
 
@@ -143,17 +149,17 @@ class CategorySelect(Select):
         try:
             selected_id = int(self.values[0])
         except ValueError:
-            await interaction.response.send_message("❌ Erro de validação de dados.", ephemeral=True)
+            await interaction.response.send_message("❌ Data validation error.", ephemeral=True)
             return
 
         if not any(c.id == selected_id for c in self.guild.categories):
-            logger.error(f"Segurança: Tentativa de injeção de ID de categoria inválido ({selected_id}) na Guild {self.guild.id}")
-            await interaction.response.send_message("❌ Erro: Esta categoria não pertence a este servidor.", ephemeral=True)
+            logger.error(f"Security: Attempt to inject invalid category ID ({selected_id}) into Guild {self.guild.id}")
+            await interaction.response.send_message("❌ Error: This category does not belong to this server.", ephemeral=True)
             return
 
-        self.config["TICKET_CATEGORY_ID"] = selected_id
+        self.config["ticket_category_id"] = selected_id
         save_server_config(self.guild.id, self.config)
-        logger.info(f"Audit: Categoria de tickets alterada para {selected_id} na Guild {self.guild.id}")
+        logger.info(f"Audit: Ticket category changed to {selected_id} in Guild {self.guild.id}")
 
         embed_ok = discord.Embed(description=f"** ``` {tr(self.guild.id, 'config_saved_category')} ``` **", color=discord.Color.dark_grey())
         await interaction.response.edit_message(embed=embed_ok, view=None)
@@ -179,19 +185,19 @@ class RoleSelect(Select):
         try:
             role_id = int(self.values[0])
         except ValueError:
-            await interaction.response.send_message("❌ Erro de validação de dados.", ephemeral=True)
+            await interaction.response.send_message("❌ Data validation error.", ephemeral=True)
             return
 
         role = self.guild.get_role(role_id)
         
         if not role:
-            logger.error(f"Segurança: Cargo {role_id} não encontrado ou inválido na Guild {self.guild.id}")
-            await interaction.response.send_message("❌ Erro: O cargo selecionado é inválido ou não existe.", ephemeral=True)
+            logger.error(f"Security: Role {role_id} not found or invalid in Guild {self.guild.id}")
+            await interaction.response.send_message("❌ Error: The selected position is invalid or does not exist.", ephemeral=True)
             return
 
-        self.config["ADMIN_ROLE_NAME"] = role.name
+        self.config["admin_role_name"] = role.name
         save_server_config(self.guild.id, self.config)
-        logger.info(f"Audit: Cargo admin atualizado para '{role.name}' ({role_id}) na Guild {self.guild.id}")
+        logger.info(f"Audit: Admin role updated to '{role.name}' ({role_id}) in Guild {self.guild.id}")
 
         embed_ok = discord.Embed(description=f"** ``` {tr(self.guild.id, 'config_saved_admin_role')} ``` **", color=discord.Color.dark_grey())
         await interaction.response.edit_message(embed=embed_ok, view=None)
@@ -217,16 +223,16 @@ class TranscriptSelect(Select):
         try:
             channel_id = int(self.values[0])
         except ValueError:
-            await interaction.response.send_message("❌ Erro de validação de dados.", ephemeral=True)
+            await interaction.response.send_message("❌ Data validation error.", ephemeral=True)
             return
 
         if not self.guild.get_channel(channel_id):
-            await interaction.response.send_message("❌ Erro: Canal de transcrição inválido.", ephemeral=True)
+            await interaction.response.send_message("❌ Error: Invalid transcription channel.", ephemeral=True)
             return
 
-        self.config["TRANSCRIPT_CHANNEL_ID"] = channel_id
+        self.config["transcript_channel_id"] = channel_id
         save_server_config(self.guild.id, self.config)
-        logger.info(f"Audit: Canal de transcrição alterado para {channel_id} na Guild {self.guild.id}")
+        logger.info(f"Audit: Transcription channel changed to {channel_id} in Guild {self.guild.id}")
 
         embed_ok = discord.Embed(description=f"** ``` {tr(self.guild.id, 'config_saved_transcript')} ``` **", color=discord.Color.dark_grey())
         await interaction.response.edit_message(embed=embed_ok, view=None)
@@ -255,12 +261,12 @@ class LanguageSelect(Select):
         selected_lang = str(self.values[0])
 
         if selected_lang not in ["en", "pt-PT", "pt-BR"]:
-            await interaction.response.send_message("❌ Idioma não suportado.", ephemeral=True)
+            await interaction.response.send_message("❌ Language not supported.", ephemeral=True)
             return
 
-        self.config["LANGUAGE"] = selected_lang
+        self.config["language"] = selected_lang
         set_server_language(self.guild.id, selected_lang)
-        logger.info(f"Audit: Idioma da Guild {self.guild.id} alterado para '{selected_lang}'")
+        logger.info(f"Audit: Guild language {self.guild.id} changed to '{selected_lang}'")
 
         embed_ok = discord.Embed(description=f"** ``` {tr(self.guild.id, 'config_saved_language')} ``` **", color=discord.Color.dark_grey())
         await interaction.response.edit_message(embed=embed_ok, view=None)

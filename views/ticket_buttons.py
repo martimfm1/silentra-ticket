@@ -1,8 +1,10 @@
-import logging
-from datetime import datetime, timezone
 import discord
+from time import sleep
+from services.logs import logger
 from discord.ui import Button, View
-from services.translation_service import tr 
+from datetime import datetime, timezone
+from services.translation_service import tr
+
 
 from database.repository import (
     close_ticket_db,
@@ -10,8 +12,6 @@ from database.repository import (
     get_server_config,
     get_ticket_by_channel_id,
 )
-
-logger = logging.getLogger(__name__)
 
 class TicketButtons(View):
     def __init__(self, guild_id: int, admin_role_name: str = None):
@@ -72,12 +72,12 @@ class TicketButtons(View):
 
         is_staff_member = await self._is_staff(guild, user)
         if not is_staff_member and user.id != author_id:
-            logger.warning(f"Segurança: Utilizador não autorizado {user.id} tentou fechar o ticket no canal {channel.id}")
-            await interaction.followup.send("❌ Não tens permissão para fechar este ticket.", ephemeral=True)
+            logger.warning(f"Security: Unauthorized user {user.id} attempted to close the ticket on channel {channel.id}")
+            await interaction.followup.send("❌ You do not have permission to close this ticket.", ephemeral=True)
             return
 
         config = get_server_config(guild.id) or {}
-        transcript_channel_id = config.get("TRANSCRIPT_CHANNEL_ID")
+        transcript_channel_id = config.get("transcript_channel_id")
 
         if not transcript_channel_id:
             await interaction.followup.send(tr(guild.id, "transcript_not_configured"), ephemeral=True)
@@ -85,8 +85,8 @@ class TicketButtons(View):
 
         transcript_channel = guild.get_channel(int(transcript_channel_id))
         if not transcript_channel:
-            logger.error(f"Configuração Inválida: Canal de transcrição {transcript_channel_id} não existe na Guild {guild.id}")
-            await interaction.followup.send("❌ Canal de transcrição configurado não foi encontrado.", ephemeral=True)
+            logger.error(f"Invalid Configuration: Transcription channel {transcript_channel_id} does not exist in Guild {guild.id}")
+            await interaction.followup.send("❌ The configured transcription channel could not be found.", ephemeral=True)
             return
 
         subject = ticket.get("subject", tr(guild.id, "ticket_no_subject"))
@@ -109,14 +109,15 @@ class TicketButtons(View):
             close_ticket_db(channel.id)
             delete_ticket_by_channel_id(channel.id)
             
-            logger.info(f"Audit: Ticket {channel.id} fechado com sucesso por {user.id}")
-            await channel.delete(reason=f"Ticket fechado por {user.name} ({user.id})")
+            logger.info(f"Audit: Ticket {channel.id} successfully closed by {user.id}")
+            sleep(5)
+            await channel.delete(reason=f"Ticket closed by {user.name} ({user.id})")
 
         except discord.Forbidden:
-            logger.error(f"Falha de Permissão: O bot não tem permissão para gerir/eliminar o canal {channel.id} na Guild {guild.id}")
-            await interaction.followup.send("❌ Erro de Permissão: O bot não tem permissões para eliminar este canal.", ephemeral=True)
+            logger.error(f"Permission Failure: The bot does not have permission to manage/delete the channel {channel.id} in the Guild {guild.id}")
+            await interaction.followup.send("❌ Permission Error: The bot does not have permission to delete this channel.", ephemeral=True)
         except Exception as e:
-            logger.exception(f"Erro inesperado ao executar o encerramento do ticket {channel.id}: {e}")
+            logger.exception(f"Unexpected error while closing ticket {channel.id}: {e}")
 
 
     async def notify_member(self, interaction: discord.Interaction):
@@ -127,7 +128,7 @@ class TicketButtons(View):
         await interaction.response.defer(ephemeral=True)
 
         if not await self._is_staff(guild, user):
-            logger.warning(f"Segurança: Utilizador {user.id} tentou usar o botão de notificação sem pertencer à Staff.")
+            logger.warning(f"Security: User {user.id} attempted to use the notification button without being a staff member.")
             return await interaction.followup.send(tr(guild.id, "notify_no_permission"), ephemeral=True)
 
         ticket = get_ticket_by_channel_id(channel.id)
@@ -141,14 +142,12 @@ class TicketButtons(View):
             try:
                 ticket_user = await guild.fetch_member(ticket_user_id)
             except discord.NotFound:
-                logger.error(f"Notificação Falhou: O utilizador {ticket_user_id} abandonou o servidor {guild.id}")
-                return await interaction.followup.send("❌ O criador do ticket já não se encontra neste servidor.", ephemeral=True)
+                logger.error(f"Notification Failed: User {ticket_user_id} left server {guild.id}")
+                return await interaction.followup.send("❌ The ticket creator is no longer on this server.", ephemeral=True)
             except discord.HTTPException:
-                logger.exception(f"Erro de rede ao buscar o utilizador {ticket_user_id}")
-                return await interaction.followup.send("❌ Erro ao contactar a API do Discord.", ephemeral=True)
+                logger.exception(f"Network error while retrieving user {ticket_user_id}")
+                return await interaction.followup.send("❌ Error contacting the Discord API.", ephemeral=True)
 
-        await channel.send(f"🔔 {ticket_user.mention}, a equipa de suporte está à tua espera. Por favor, responde assim que possível.")
-        
         await interaction.followup.send(
             tr(guild.id, "member_notified", member=ticket_user.name),
             ephemeral=True,

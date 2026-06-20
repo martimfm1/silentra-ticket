@@ -1,11 +1,11 @@
-import logging
 import discord
+from services.logs import logger
 from discord.ui import Button, View
 from database.repository import get_server_config
 from services.translation_service import tr
 from views.ticket_modal import TicketModal
 
-logger = logging.getLogger(__name__)
+
 
 class TicketView(View):
     def __init__(self, guild_id: int):
@@ -28,18 +28,18 @@ class TicketView(View):
         try:
             config = get_server_config(guild_id) or {}
 
-            required_keys = ["TICKET_CATEGORY_ID", "ADMIN_ROLE_NAME", "TRANSCRIPT_CHANNEL_ID"]
+            required_keys = ["ticket_category_id", "admin_role_name", "transcript_channel_id"]
             missing = [key for key in required_keys if not config.get(key)]
 
             if missing:
                 key_names = {
-                    "TICKET_CATEGORY_ID": tr(guild_id, "config_ticket_category"),
-                    "ADMIN_ROLE_NAME": tr(guild_id, "config_admin_role"),
-                    "TRANSCRIPT_CHANNEL_ID": tr(guild_id, "config_transcript_channel"),
+                    "ticket_category_id": tr(guild_id, "config_ticket_category"),
+                    "admin_role_name": tr(guild_id, "config_admin_role"),
+                    "transcript_channel_id": tr(guild_id, "config_transcript_channel"),
                 }
                 missing_readable = ", ".join(key_names[k] for k in missing if k in key_names)
                 
-                logger.warning(f"Configuração Incompleta: Guild {guild_id} tentou instanciar ticket, mas faltam os campos: {missing}")
+                logger.warning(f"Incomplete Configuration: Guild {guild_id} attempted to instantiate a ticket, but the following fields are missing: {missing}")
                 
                 await interaction.response.send_message(
                     tr(guild_id, "cannot_open_tickets_missing", missing=missing_readable),
@@ -48,16 +48,16 @@ class TicketView(View):
                 return
 
             await interaction.response.send_modal(TicketModal(guild_id=guild_id))
-            logger.debug(f"UI: Modal de abertura enviado para o utilizador {interaction.user.id} na Guild {guild_id}")
+            logger.debug(f"UI: Opening modal sent to user {interaction.user.id} in Guild {guild_id}")
 
         except discord.InteractionResponded:
-            logger.warning(f"UI Split-Second: Duplo clique detetado para o utilizador {interaction.user.id}")
+            logger.warning(f"UI Split-Second: Double-click detected for user {interaction.user.id}")
         except Exception as e:
-            logger.exception(f"Erro crítico ao processar acionamento do painel de tickets na Guild {guild_id}: {e}")
+            logger.exception(f"Critical error processing ticket panel activation in Guild {guild_id}: {e}")
             
             try:
                 await interaction.response.send_message(
-                    "❌ O sistema de suporte encontrou uma instabilidade interna ao carregar o formulário. Por favor, tenta novamente.",
+                    "❌ The support system encountered an internal instability while loading the form. Please try again.",
                     ephemeral=True
                 )
             except Exception:

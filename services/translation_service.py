@@ -1,26 +1,24 @@
 import json
-import logging
 from pathlib import Path
+from services.logs import logger
 from database.repository import get_server_config
-
-logger = logging.getLogger(__name__)
 
 LOCALES_DIR = Path(__file__).resolve().parent.parent / "locales"
 
 DEFAULT_LANGUAGE = "en"
 TRANSLATION_FILES = {
-    "en": "traducao-en.json",
-    "pt-PT": "traducao-pt-pt.json",
-    "pt-BR": "traducao-pt-br.json",
+    "en": "translation-en.json",
+    "pt-PT": "translation-pt-pt.json",
+    "pt-BR": "translation-pt-br.json",
 }
 TRANSLATIONS: dict[str, dict[str, str]] = {}
 
 
 def load_translations():
-    logger.info(f"I18n: A inicializar carregamento de locais a partir de: {LOCALES_DIR}")
+    logger.info(f"I18n: Initializing loading of locations from: {LOCALES_DIR}")
     
     if not LOCALES_DIR.exists():
-        logger.warning(f"I18n: O diretório {LOCALES_DIR} não existe. A criá-lo automaticamente.")
+        logger.warning(f"I18n: The directory {LOCALES_DIR} does not exist. Create it automatically.")
         LOCALES_DIR.mkdir(parents=True, exist_ok=True)
 
     for lang_code, file_name in TRANSLATION_FILES.items():
@@ -28,20 +26,20 @@ def load_translations():
         
         try:
             if not file_path.exists():
-                logger.error(f"I18n: Ficheiro de tradução obrigatório em falta: '{file_path}'")
+                logger.error(f"I18n: Required translation file missing: '{file_path}'")
                 TRANSLATIONS[lang_code] = {}
                 continue
 
             with file_path.open("r", encoding="utf-8") as file:
                 TRANSLATIONS[lang_code] = json.load(file)
                 
-            logger.info(f"I18n: Idioma '{lang_code}' carregado com sucesso. ({len(TRANSLATIONS[lang_code])} chaves)")
+            logger.info(f"I18n: Language '{lang_code}' loaded successfully. ({len(TRANSLATIONS[lang_code])} braces)")
             
         except json.JSONDecodeError as exc:
-            logger.exception(f"I18n: Erro crítico de sintaxe (JSON Inválido) no ficheiro {file_name}: {exc}")
+            logger.exception(f"I18n: Critical syntax error (Invalid JSON) in file {file_name}: {exc}")
             TRANSLATIONS[lang_code] = {}
         except Exception:
-            logger.exception(f"I18n: Erro inesperado de I/O ao ler o ficheiro {file_path}")
+            logger.exception(f"I18n: Unexpected I/O error while reading file {file_path}")
             TRANSLATIONS[lang_code] = {}
 
 
@@ -59,7 +57,7 @@ def get_language(guild_id: int) -> str:
             
         return DEFAULT_LANGUAGE
     except Exception:
-        logger.error(f"I18n: Falha ao resolver idioma para Guild {guild_id}. A usar fallback de emergência: {DEFAULT_LANGUAGE}")
+        logger.error(f"I18n: Failed to resolve language for Guild {guild_id}. Using emergency fallback: {DEFAULT_LANGUAGE}")
         return DEFAULT_LANGUAGE
 
 
@@ -73,14 +71,14 @@ def tr(guild_id: int, key: str, **kwargs) -> str:
     )
 
     if text is None:
-        logger.warning(f"I18n Missing Key: A chave '{key}' não foi encontrada nos pacotes de idioma (Guild: {guild_id}).")
+        logger.warning(f"I18n Missing Key: The key '{key}' was not found in the language packs (Guild: {guild_id}).")
         text = key
 
     try:
         return text.format(**kwargs)
     except KeyError as k_err:
-        logger.error(f"I18n Format Error: Falta o argumento {k_err} para processar o template da chave '{key}' ({language})")
+        logger.error(f"I18n Format Error: Missing argument {k_err} to process key template '{key}' ({language})")
         return text
     except Exception:
-        logger.exception(f"I18n Format Error: Erro inesperado ao formatar parâmetros na string '{key}'")
+        logger.exception(f"I18n Format Error: Unexpected error while formatting parameters in string '{key}'")
         return text

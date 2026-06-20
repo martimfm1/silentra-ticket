@@ -1,11 +1,10 @@
-import logging
 import discord
+from services.logs import logger
 from discord.ui import Modal, TextInput
 from services.translation_service import tr
 from database.repository import get_server_config, create_ticket_db
 from views.ticket_buttons import TicketButtons
 
-logger = logging.getLogger(__name__)
 
 class TicketModal(Modal):
     def __init__(self, guild_id: int):
@@ -26,9 +25,9 @@ class TicketModal(Modal):
         await interaction.response.defer(ephemeral=True)
 
         config = get_server_config(guild.id) or {}
-        category_id = config.get("TICKET_CATEGORY_ID")
-        admin_role_name = config.get("ADMIN_ROLE_NAME")
-        transcript_channel_id = config.get("TRANSCRIPT_CHANNEL_ID")
+        category_id = config.get("ticket_category_id")
+        admin_role_name = config.get("admin_role_name")
+        transcript_channel_id = config.get("transcript_channel_id")
 
         missing = []
         if not category_id: missing.append(tr(guild.id, "config_ticket_category"))
@@ -45,14 +44,14 @@ class TicketModal(Modal):
         sanitized_name = f"ticket-{member.name.lower()}".replace(" ", "-")
         existing_channel = discord.utils.get(guild.text_channels, name=sanitized_name)
         if existing_channel:
-            logger.warning(f"Segurança: Utilizador {member.id} tentou duplicar ticket no canal existente {existing_channel.id}")
-            await interaction.followup.send("❌ Já tens um ticket ativo aberto no servidor.", ephemeral=True)
+            logger.warning(f"Security: User {member.id} attempted to duplicate a ticket in the existing channel {existing_channel.id}")
+            await interaction.followup.send("❌ You already have an active ticket open on the server.", ephemeral=True)
             return
 
         category = guild.get_channel(int(category_id))
         if not category or not isinstance(category, discord.CategoryChannel):
-            logger.error(f"Erro de Infraestrutura: Categoria de tickets {category_id} não existe na Guild {guild.id}")
-            await interaction.followup.send("❌ Erro de Configuração: A categoria de suporte configurada foi eliminada ou é inválida.", ephemeral=True)
+            logger.error(f"Infrastructure Error: Ticket category {category_id} does not exist in Guild {guild.id}")
+            await interaction.followup.send("❌ Configuration Error: The configured support category has been deleted or is invalid.", ephemeral=True)
             return
 
         admin_role = discord.utils.get(guild.roles, name=admin_role_name)
@@ -83,19 +82,19 @@ class TicketModal(Modal):
                 reason=f"Ticket aberto pelo utilizador: {member.name} ({member.id})"
             )
         except discord.Forbidden:
-            logger.critical(f"Falha de Permissão: O bot não tem 'Manage Channels' na Guild {guild.id}")
-            await interaction.followup.send("❌ Falha crítica: O Bot não tem permissões administrativas para criar canais de texto.", ephemeral=True)
+            logger.critical(f"Permission Failure: The bot does not have 'Manage Channels' in Guild {guild.id}")
+            await interaction.followup.send("❌ Critical error: The bot does not have administrative permissions to create text channels.", ephemeral=True)
             return
         except Exception:
-            logger.exception(f"Erro inesperado ao instanciar canal de texto para o utilizador {member.id}")
-            await interaction.followup.send("❌ Ocorreu um erro interno ao processar a criação do canal.", ephemeral=True)
+            logger.exception(f"Unexpected error while instantiating text channel for user {member.id}")
+            await interaction.followup.send("❌ An internal error occurred while processing the channel creation.", ephemeral=True)
             return
 
         db_success = create_ticket_db(guild.id, ticket_channel.id, member.id, self.subject.value)
         if not db_success:
-            logger.critical(f"Falha de Transação: Destruindo canal órfão {ticket_channel.id} devido a erro na gravação da BD.")
-            await ticket_channel.delete(reason="Rollback: Falha ao registar o ticket na Base de Dados.")
-            await interaction.followup.send("❌ Sistema temporariamente indisponível. Por favor, tenta novamente mais tarde.", ephemeral=True)
+            logger.critical(f"Transaction Failure: Destroying orphaned channel {ticket_channel.id} due to a database write error.")
+            await ticket_channel.delete(reason="Rollback: Failed to register the ticket in the database.")
+            await interaction.followup.send("❌ System temporarily unavailable. Please try again later.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -131,7 +130,7 @@ class TicketModal(Modal):
                 tr(guild.id, "ticket_created_success", channel=ticket_channel.mention),
                 ephemeral=True,
             )
-            logger.info(f"Sucesso: Ticket {ticket_channel.id} instanciado e registado para o utilizador {member.id}")
+            logger.info(f"Success: Ticket {ticket_channel.id} instantiated and registered for user {member.id}")
             
         except Exception:
-            logger.exception(f"Erro ao popular conteúdo inicial no canal de tickets {ticket_channel.id}")
+            logger.exception(f"Error populating initial content in ticket channel {ticket_channel.id}")

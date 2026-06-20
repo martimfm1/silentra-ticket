@@ -1,6 +1,5 @@
-import asyncio
-import logging
 import discord
+from services.logs import logger
 from discord.ext import commands, tasks
 
 from database.database import validate_db_connection
@@ -9,7 +8,6 @@ from services.translation_service import load_translations, tr
 from views.ticket_buttons import TicketButtons
 from views.ticket_view import TicketView
 
-logger = logging.getLogger(__name__)
 
 class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -19,26 +17,26 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logger.info("Ciclo de vida: 'on_ready' disparado pelo gateway do Discord.")
+        logger.info("Lifecycle: 'on_ready' triggered by the Discord gateway.")
         
         try:
             load_translations()
-            logger.info("Traduções carregadas com sucesso no sistema local.")
+            logger.info("Translations successfully loaded into the local system.")
         except Exception:
-            logger.exception("Falha crítica ao carregar ficheiros de tradução internacional.")
+            logger.exception("Critical error occurred while loading international translation files.")
 
         try:
             validate_db_connection()
-            logger.info("Ligação à Base de Dados validada com sucesso.")
+            logger.info("Connection to the database successfully validated.")
         except Exception:
-            logger.exception("Falha na integridade da ligação com a Base de Dados de Produção.")
+            logger.exception("Failure in the integrity of the connection to the Production Database.")
 
         if not self.change_status.is_running():
             self.change_status.start()
-            logger.info("Loop de rotação de presenças (Status) inicializado.")
+            logger.info("The presence rotation loop (Status) has been initialized.")
 
         if not self.persistent_views_added:
-            logger.info(f"A inicializar registo de Views Persistentes para {len(self.bot.guilds)} servidores.")
+            logger.info(f"Initializing registration of Persistent Views for {len(self.bot.guilds)} servers.")
             
             for guild in self.bot.guilds:
                 try:
@@ -49,14 +47,14 @@ class Events(commands.Cog):
                     
                     self.bot.add_view(TicketButtons(guild.id, admin_role_name=admin_role))
                     
-                    logger.debug(f"Views persistentes registadas com sucesso para a Guild ID: {guild.id}")
+                    logger.debug(f"Persistent views successfully registered for Guild ID: {guild.id}")
                 except Exception:
-                    logger.exception(f"Erro de isolamento ao registar views persistentes para a Guild ID {guild.id}. A saltar...")
+                    logger.exception(f"Isolation error while registering persistent views for Guild ID {guild.id}. Skipping...")
 
             self.persistent_views_added = True
-            logger.info("Processo de injeção de Views Persistentes concluído.")
+            logger.info("The process of injecting persistent views has been completed.")
 
-        logger.info(f"🚀 Sistema operacional completo. Bot autenticado como: {self.bot.user}")
+        logger.info(f"🚀 Full operating system. Bot authenticated as: {self.bot.user}")
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
@@ -67,9 +65,9 @@ class Events(commands.Cog):
             self.bot.add_view(TicketView(guild.id))
             self.bot.add_view(TicketButtons(guild.id, admin_role_name=admin_role))
             
-            logger.info(f"Segurança Dinâmica: Novas Views injetadas via on_guild_join para o servidor {guild.name} ({guild.id})")
+            logger.info(f"Dynamic Security: New Views injected via on_guild_join for the server {guild.name} ({guild.id})")
         except Exception:
-            logger.exception(f"Falha ao processar registo dinâmico de views no novo servidor {guild.id}")
+            logger.exception(f"Failed to process dynamic view registration on the new server {guild.id}")
 
     @tasks.loop(seconds=10)
     async def change_status(self):
@@ -85,9 +83,9 @@ class Events(commands.Cog):
         
         try:
             await self.bot.change_presence(activity=current_activity)
-            logger.debug(f"Presença atualizada com sucesso para o estado índice {self.status_index}")
+            logger.debug(f"Presence successfully updated for index state {self.status_index}")
         except Exception as e:
-            logger.error(f"Erro ao interagir com a API de gateway do Discord para atualizar presença: {e}")
+            logger.error(f"Error interacting with the Discord gateway API to update presence: {e}")
         
         self.status_index += 1
 

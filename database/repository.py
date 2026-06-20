@@ -1,7 +1,5 @@
-import logging
+from services.logs import logger
 from database.database import supabase
-
-logger = logging.getLogger(__name__)
 
 def get_server_config(guild_id: int) -> dict:
     try:
@@ -12,7 +10,7 @@ def get_server_config(guild_id: int) -> dict:
             
         return {}
     except Exception as e:
-        logger.error(f"DB Error: Falha ao ler configuração da Guild {guild_id}: {e}")
+        logger.error(f"DB Error: Failed to read configuration for Guild {guild_id}: {e}")
         return {}
 
 
@@ -24,10 +22,10 @@ def set_server_language(guild_id: int, language: str) -> bool:
         }
         response = supabase.table("servers").upsert(payload).execute()
         
-        logger.info(f"DB Audit: Idioma da Guild {guild_id} alterado para '{language}'.")
+        logger.info(f"DB Audit: Guild language {guild_id} changed to '{language}'.")
         return response and hasattr(response, 'data') and len(response.data) > 0
     except Exception as e:
-        logger.error(f"DB Error: Falha ao definir idioma para a Guild {guild_id}: {e}")
+        logger.error(f"DB Error: Failed to set language for Guild {guild_id}: {e}")
         return False
 
 
@@ -47,7 +45,7 @@ def create_ticket_db(guild_id: int, channel_id: int, user_id: int, subject: str)
         response = supabase.table("tickets").insert(payload).execute()
         return len(response.data) > 0
     except Exception as e:
-        logger.error(f"DB Error: Falha ao inserir ticket do canal {channel_id} na Supabase: {e}")
+        logger.error(f"DB Error: Failed to insert ticket from channel {channel_id} into Supabase: {e}")
         return False
 
 
@@ -56,7 +54,7 @@ def get_ticket_by_channel_id(channel_id: int) -> dict:
         response = supabase.table("tickets").select("*").eq("channel_id", channel_id).maybe_single().execute()
         return response.data or {}
     except Exception as e:
-        logger.error(f"DB Error: Erro ao buscar ticket do canal {channel_id}: {e}")
+        logger.error(f"DB Error: Error retrieving ticket from channel {channel_id}: {e}")
         return {}
     
 def close_ticket_db(channel_id: int):
@@ -66,9 +64,9 @@ def close_ticket_db(channel_id: int):
 def delete_ticket_by_channel_id(channel_id: int):
     try:
         supabase.table("tickets").delete().eq("channel_id", channel_id).execute()
-        logger.info(f"DB Audit: Ticket do canal {channel_id} removido com sucesso da Supabase.")
+        logger.info(f"DB Audit: Ticket for channel {channel_id} successfully removed from Supabase.")
     except Exception as e:
-        logger.error(f"DB Error: Falha ao deletar ticket {channel_id}: {e}")
+        logger.error(f"DB Error: Failed to delete ticket {channel_id}: {e}")
 
 
 def get_all_server_ids() -> list[int]:
@@ -78,7 +76,7 @@ def get_all_server_ids() -> list[int]:
             return [int(row["guild_id"]) for row in response.data]
         return []
     except Exception as e:
-        logger.error(f"DB Error: Falha ao listar IDs de servidores para reidratação: {e}")
+        logger.error(f"DB Error: Failed to list server IDs for rehydration: {e}")
         return []
 
 
@@ -88,8 +86,8 @@ def save_server_config(guild_id: int, config_data: dict) -> bool:
 
         response = supabase.table("servers").upsert(payload).execute()
         
-        logger.info(f"DB Audit: Configurações da Guild {guild_id} atualizadas com sucesso.")
+        logger.info(f"DB Audit: Guild {guild_id} settings updated successfully.")
         return len(response.data) > 0
     except Exception as e:
-        logger.error(f"DB Error: Falha ao executar upsert de configuração para a Guild {guild_id}: {e}")
+        logger.error(f"DB Error: Failed to execute configuration upsert for Guild {guild_id}: {e}")
         return False
