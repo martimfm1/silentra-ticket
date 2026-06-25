@@ -40,7 +40,6 @@ class TicketButtons(View):
 
 
     async def _is_staff(self, guild: discord.Guild, member: discord.Member) -> bool:
-        """Helper privado para validar se o utilizador pertence à Staff."""
         if member.guild_permissions.administrator:
             return True
             
